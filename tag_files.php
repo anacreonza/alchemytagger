@@ -105,7 +105,8 @@ function process_entry($entry, $input_dir, $output_root){
         if (file_exists($pdf)){
             echo("  [PDF OK]\n");
         } else {
-            die("[Failed to produce pdf!] $pdf\n");
+            echo("[Failed to produce pdf!] $pdf\n");
+            return false;
         }
         // Add OCR text to doc as metadata
         // echo("Adding OCR text to file description metadata.\n");
@@ -200,7 +201,8 @@ while ($completed_file_total < $entrycount){
     if (!$entry_already_processed){
         $result = process_entry($metadata[$random_entry], $input_dir, $output_root);
         if ($result){
-            echo("\n$completed_file_total files of $entrycount completed.\n");
+            $completion_percent = round($completed_file_total / $entrycount * 100, 2);
+            echo("\n$completed_file_total files of $entrycount completed ($completion_percent%).\n");
         }
     }
 }
