@@ -24,6 +24,7 @@ define('TESSERACT', escapeshellarg($tess_path_string));
 define('CONVERT', escapeshellarg($magick_path_string));
 
 $input_dir = getcwd();
+$output_root = $input_dir . DIRECTORY_SEPARATOR . "tagged" . DIRECTORY_SEPARATOR;
 $json_file = "dat/metatags.json";
 if (file_exists($json_file)){
     $metadatajson = file_get_contents("dat/metatags.json");
@@ -34,8 +35,29 @@ $metadata = json_decode($metadatajson);
 // tesseract imagename basename
 $entrycount = count($metadata);
 echo("\n\nStarting Alchemy tagging script...\n");
-echo("\n$entrycount entries in metadata.json\n\n");
-$filecounter = 1;
+echo("\n$entrycount total entries found in DB\n\n");
+$completed_file_total = 0;
+
+function get_completed_file_total($metadata, $output_root){
+    $completedfiles = 0;
+    foreach ($metadata as $entry){
+        $result = check_if_entry_has_been_processed($entry, $output_root);
+        if ($result){
+            $completedfiles++;
+        }
+    }
+    return $completedfiles;
+}
+
+function check_if_entry_has_been_processed($entry, $output_root){
+    $folder = str_replace('\\', DIRECTORY_SEPARATOR , $entry->FOLDER);
+    $output_file = str_replace(".tif", ".pdf", $output_root . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'});
+    if (file_exists($output_file)){
+        return true;
+    } else {
+        return false;
+    }
+}
 
 function add_keyword_tag($tag, $file){
     echo("  Adding $tag.\n");
@@ -44,25 +66,21 @@ function add_keyword_tag($tag, $file){
     // echo($cmd . "\n");
     exec($cmd);
 }
-
-foreach ($metadata as $entry) {
+function process_entry($entry, $input_dir, $output_root){
     $start_time = microtime(true);
     $folder = str_replace('\\', DIRECTORY_SEPARATOR , $entry->FOLDER);
     $file = $input_dir . DIRECTORY_SEPARATOR . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'};
-    $out_folder = $input_dir . DIRECTORY_SEPARATOR . "tagged" . DIRECTORY_SEPARATOR . $folder;
+    $out_folder = $output_root . $folder;
     if (!file_exists($out_folder)){
         echo "Making new folder $out_folder";
         mkdir($out_folder, 0777, true);
     }
     if (!file_exists($file)){
-        echo("Source file not found: $file\n");
-        $filecounter++;
-        continue;
+        return;
     }
     $path_parts = pathinfo($file);
     $out_file = $out_folder . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
     if (!file_exists($out_file)){
-        echo("\n\nProcessing file $filecounter of $entrycount\n");
         echo("Input File: " . $file . "\n");
         $ocrfile = $path_parts['dirname'] . DIRECTORY_SEPARATOR . $path_parts['filename'];
         // Run Tesseract to do ORC on file
@@ -100,7 +118,7 @@ foreach ($metadata as $entry) {
         echo("Tagging image with metadata extracted from .dat file...\n");
         $doctitle = basename($pdf);
         echo("  Adding document title: $doctitle.\n");
-        $exif_cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original -title=" . $doctitle;
+        $exif_cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original -title=\"" . $doctitle . "\"";
         exec($exif_cmd);
         // Add the parts of the path to metadata as keywords
         $keywords = explode(DIRECTORY_SEPARATOR, $folder);
@@ -171,11 +189,19 @@ foreach ($metadata as $entry) {
         echo("File took " . round($elapsed_time, 2) . " seconds to process.\n");
         echo("Output File: $out_file\n");
         rename($pdf, $out_file);
-        $filecounter++;
-    } else {
-        echo("File already processed: $out_file \n");
-        $filecounter++;
+        return true;
     }
 }
 
+while ($completed_file_total < $entrycount){
+    $completed_file_total = get_completed_file_total($metadata, $output_root);
+    $random_entry = rand(0, $entrycount);
+    $entry_already_processed = check_if_entry_has_been_processed($metadata[$random_entry], $output_root);
+    if (!$entry_already_processed){
+        $result = process_entry($metadata[$random_entry], $input_dir, $output_root);
+        if ($result){
+            echo("\n$completed_file_total files of $entrycount completed.\n");
+        }
+    }
+}
 ?>
