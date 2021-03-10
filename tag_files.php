@@ -25,9 +25,10 @@ define('CONVERT', escapeshellarg($magick_path_string));
 
 $input_dir = getcwd();
 $output_root = $input_dir . DIRECTORY_SEPARATOR . "tagged" . DIRECTORY_SEPARATOR;
-$json_file = "dat/metatags.json";
+define('LOGFILE' , $input_dir . DIRECTORY_SEPARATOR . "tagging.log");
+$json_file = "dat" . DIRECTORY_SEPARATOR . "metatags.json";
 if (file_exists($json_file)){
-    $metadatajson = file_get_contents("dat/metatags.json");
+    $metadatajson = file_get_contents($json_file);
 } else {
     die("Unable to read $json_file");
 }
@@ -37,6 +38,14 @@ $entrycount = count($metadata);
 echo("\n\nStarting Alchemy tagging script...\n");
 echo("\n$entrycount total entries found in DB\n\n");
 $completed_file_total = 0;
+
+function write_logentry($entrytext){
+	$date = new DateTime();
+	$log = fopen(LOGFILE, "a");
+	$entry = "\n" . $date->format('Y-m-d H:i:s') . " " . $entrytext;
+	fwrite($log, $entry);
+	fclose($log);
+}
 
 function get_completed_file_total($metadata, $output_root){
     $completedfiles = 0;
@@ -106,6 +115,7 @@ function process_entry($entry, $input_dir, $output_root){
             echo("  [PDF OK]\n");
         } else {
             echo("[Failed to produce pdf!] $pdf\n");
+            write_logentry("! Failed to produce pdf: $pdf !");
             return false;
         }
         // Add OCR text to doc as metadata
@@ -190,6 +200,10 @@ function process_entry($entry, $input_dir, $output_root){
         echo("File took " . round($elapsed_time, 2) . " seconds to process.\n");
         echo("Output File: $out_file\n");
         rename($pdf, $out_file);
+        if (file_exists($out_file)){
+            $logentry = "Stored file: $out_file";
+            write_logentry($logentry);
+        }
         return true;
     }
 }
