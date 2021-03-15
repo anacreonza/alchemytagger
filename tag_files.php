@@ -193,6 +193,11 @@ function process_entry($entry, $input_dir, $output_root){
             $tag = "Type: " . $entry->{'Document Type'};
             add_keyword_tag($tag, $pdf);
         }
+        // FICA No
+        if (isset($entry->{'Fica No'})){
+            $tag = "Fica No: " . $entry->{'Fica No'};
+            add_keyword_tag($tag, $pdf);
+        }
         // Add file date to metadata
         if (isset($entry->{'File Date'})){
             $filedate = $entry->{'File Date'};
