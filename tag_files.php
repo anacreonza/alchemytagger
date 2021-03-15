@@ -27,7 +27,9 @@ $input_dir = getcwd();
 $output_root = dirname($input_dir) . DIRECTORY_SEPARATOR . "Processed" . DIRECTORY_SEPARATOR . basename($input_dir) . DIRECTORY_SEPARATOR;
 define('LOGFILE' , $input_dir . DIRECTORY_SEPARATOR . "tagging.log");
 define('MISSINGFILES', $input_dir . DIRECTORY_SEPARATOR . "missing.txt");
-unlink(MISSINGFILES); //whack the existing missing files file in case there is already one.
+if (file_exists(MISSINGFILES)){
+    unlink(MISSINGFILES); //whack the existing missing files file in case there is already one.
+}
 $json_file = "dat" . DIRECTORY_SEPARATOR . "metatags.json";
 if (file_exists($json_file)){
     $metadatajson = file_get_contents($json_file);
@@ -229,7 +231,7 @@ for ($i=0; $i < $entrycount; $i++) {
 //  Then start tagging
 print_r("\nTagging items...\n");
 while (count($completed_file_ids) < $entrycount){
-    $selected_entry_id = rand(0, $entrycount);
+    $selected_entry_id = rand(0, $entrycount - 1);
     if (in_array($selected_entry_id, $completed_file_ids)){
         continue;
     }
