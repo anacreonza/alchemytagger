@@ -87,7 +87,7 @@ function process_entry($entry, $input_dir, $output_root){
     $file = $input_dir . DIRECTORY_SEPARATOR . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'};
     $out_folder = $output_root . $folder;
     if (!file_exists($out_folder)){
-        echo "Making new folder $out_folder";
+        echo "Making new folder $out_folder\n";
         mkdir($out_folder, 0777, true);
     }
     if (!file_exists($file)){
@@ -188,6 +188,11 @@ function process_entry($entry, $input_dir, $output_root){
             $tag = "Initials: " . $entry->{'Initials'};
             add_keyword_tag($tag, $pdf);
         }
+        // First Names
+        if (isset($entry->{'First Names'})){
+            $tag = "First Names: " . $entry->{'First Names'};
+            add_keyword_tag($tag, $pdf);
+        }
         // Document Type
         if (isset($entry->{'Document Type'})){
             $tag = "Type: " . $entry->{'Document Type'};
@@ -196,6 +201,31 @@ function process_entry($entry, $input_dir, $output_root){
         // FICA No
         if (isset($entry->{'Fica No'})){
             $tag = "Fica No: " . $entry->{'Fica No'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // ID No
+        if (isset($entry->{'ID_No'})){
+            $tag = "ID No: " . $entry->{'ID_No'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // Batch
+        if (isset($entry->{'BATCH NO'})){
+            $tag = "Batch No: " . $entry->{'BATCH NO'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // Sub-Batch
+        if (isset($entry->{'SubBatch'})){
+            $tag = "SubBatch: " . $entry->{'SubBatch'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // SH Number
+        if (isset($entry->{'SH Number'})){
+            $tag = "SH Number: " . $entry->{'SH Number'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // Alt SH Number
+        if (isset($entry->{'Alt SH Number'})){
+            $tag = "Alt SH Number: " . $entry->{'Alt SH Number'};
             add_keyword_tag($tag, $pdf);
         }
         // Add file date to metadata
