@@ -57,6 +57,7 @@ function validate_entry($entry, $input_dir, $output_root){
         $message = "Entry " . $entry->ID . " has no file reference.\n";
         print_r($message);
         $errors_file = fopen(ERRORS, "a");
+        $line_found = false;
         while($buffer = fgets($errors_file, 5000)){
             if ($buffer == $message){
                 $line_found = true;
