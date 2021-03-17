@@ -288,6 +288,8 @@ function process_entry($entry, $input_dir, $output_root){
 }
 $entries_to_process = [];
 $valid_entries_count = 0;
+$errored_entries_count = 0;
+$succeeded_entries_count = 0;
 //  First loop though entire DB to see how far we are
 print_r("Validating DB entries...\n");
 for ($i=0; $i < $totalentrycount; $i++) { 
@@ -318,14 +320,19 @@ while (count($entries_to_process) > 1){
         unset($entries_to_process[$entries_to_process_id]);
     } else {
         $result = process_entry($selected_entry, $input_dir, $output_root);
+        $entries_to_process_id = array_search($selected_entry_id, $entries_to_process);
+        unset($entries_to_process[$entries_to_process_id]);
+        $remaining_entries_count = count($entries_to_process);
+        $completed_file_total = $valid_entries_count - $remaining_entries_count;
+        $completion_percent = round($completed_file_total / $valid_entries_count * 100, 2);
         if ($result){
-            $entries_to_process_id = array_search($selected_entry_id, $entries_to_process);
-            unset($entries_to_process[$entries_to_process_id]);
-            $remaining_entries_count = count($entries_to_process);
-            $completed_file_total = $valid_entries_count - $remaining_entries_count;
-            $completion_percent = round($completed_file_total / $valid_entries_count * 100, 2);
-            echo("\n$completed_file_total files of $valid_entries_count completed ($completion_percent%).\n");
+            print_r("Entry conversion successful.\n");
+            $succeeded_entries_count++;
+        } else {
+            $errored_entries_count++;
+            print_r("Entry failed. See errors log.\n");
         }
+        echo("\n$completed_file_total files of $valid_entries_count completed ($completion_percent%).\n");
     }
 }
 print_r("Script complete.");
