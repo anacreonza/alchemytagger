@@ -133,30 +133,32 @@ function process_entry($entry, $input_dir, $output_root){
         // } else {
         //     die("[Failed to produce OCR txt $ocrtextfile");
         // }
-        // Convert file to PDF
-        echo("Converting TIFF to PDF... \n");
-        $pdf = $path_parts['dirname']. DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
-        if (PHP_OS === "WINNT"){
-            $cmd = CONVERT . " convert " . escapeshellarg($file) . " " . escapeshellarg($pdf);
-        } else {
-            $cmd = CONVERT . " " . escapeshellarg($file) . " " . escapeshellarg($pdf);
+        // Convert file to PDF if it is a TIFF file
+        if ($path_parts['extension'] == "tif"){
+            echo("Converting TIFF to PDF... \n");
+            $pdf = $path_parts['dirname']. DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
+            if (PHP_OS === "WINNT"){
+                $cmd = CONVERT . " convert " . escapeshellarg($file) . " " . escapeshellarg($pdf);
+            } else {
+                $cmd = CONVERT . " " . escapeshellarg($file) . " " . escapeshellarg($pdf);
+            }
+            exec($cmd);
+            if (file_exists($pdf)){
+                echo("  [PDF OK]\n");
+            } else {
+                echo("[Failed to produce pdf!] $pdf\n");
+                write_logentry("! Failed to produce pdf: $pdf !");
+                return false;
+            }
+            // Add OCR text to doc as metadata
+            // echo("Adding OCR text to file description metadata.\n");
+            // $cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original \"-imagedescription<=" . $ocrtextfile . "\"";
+            // exec($cmd);
+            // // Now delete OCR file as we no longer need it.
+            // // echo("Removing OCR file $ocrtextfile\n");
+            // unlink($ocrtextfile);
+            // Add document title to metadata
         }
-        exec($cmd);
-        if (file_exists($pdf)){
-            echo("  [PDF OK]\n");
-        } else {
-            echo("[Failed to produce pdf!] $pdf\n");
-            write_logentry("! Failed to produce pdf: $pdf !");
-            return false;
-        }
-        // Add OCR text to doc as metadata
-        // echo("Adding OCR text to file description metadata.\n");
-        // $cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original \"-imagedescription<=" . $ocrtextfile . "\"";
-        // exec($cmd);
-        // // Now delete OCR file as we no longer need it.
-        // // echo("Removing OCR file $ocrtextfile\n");
-        // unlink($ocrtextfile);
-        // Add document title to metadata
         echo("Tagging image with metadata extracted from .dat file...\n");
         $doctitle = basename($pdf);
         echo("  Adding document title: $doctitle.\n");
@@ -270,7 +272,12 @@ function process_entry($entry, $input_dir, $output_root){
         $elapsed_time = $end_time - $start_time;
         echo("File took " . round($elapsed_time, 2) . " seconds to process.\n");
         echo("Output File: $out_file\n");
-        rename($pdf, $out_file);
+        if ($path_parts['extension'] == "tif"){
+            rename($pdf, $out_file);
+        }
+        if ($path_parts['extension'] == "pdf"){
+            copy($pdf, $out_file);
+        }
         if (file_exists($out_file)){
             $message = "Stored file: " . $out_file;
             write_logentry($message);
