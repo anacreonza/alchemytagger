@@ -26,10 +26,8 @@ define('CONVERT', escapeshellarg($magick_path_string));
 $input_dir = getcwd();
 $output_root = dirname($input_dir) . DIRECTORY_SEPARATOR . "Processed" . DIRECTORY_SEPARATOR . basename($input_dir) . DIRECTORY_SEPARATOR;
 define('LOGFILE' , $input_dir . DIRECTORY_SEPARATOR . "tagging.log");
-define('MISSINGFILES', $input_dir . DIRECTORY_SEPARATOR . "missing.txt");
-if (file_exists(MISSINGFILES)){
-    unlink(MISSINGFILES); //whack the existing missing files file in case there is already one.
-}
+define('ERRORS', $input_dir . DIRECTORY_SEPARATOR . "errors.txt");
+
 $json_file = "dat" . DIRECTORY_SEPARATOR . "metatags.json";
 if (file_exists($json_file)){
     $metadatajson = file_get_contents($json_file);
@@ -38,9 +36,9 @@ if (file_exists($json_file)){
 }
 $metadata = json_decode($metadatajson);
 // tesseract imagename basename
-$entrycount = count($metadata);
+$totalentrycount = count($metadata);
 echo("\n\nStarting Alchemy tagging script...\n");
-echo("\n$entrycount total entries found in DB\n\n");
+echo("\n$totalentrycount total entries found in DB\n\n");
 $completed_file_ids = [];
 
 function write_logentry($entrytext){
@@ -50,25 +48,47 @@ function write_logentry($entrytext){
 	fwrite($log, $entry);
 	fclose($log);
 }
-function verify_inputfile($entry, $input_dir){
+function validate_entry($entry, $input_dir, $output_root){
+    if (!isset($entry->FOLDER)){
+        return false;
+    }
     $folder = str_replace('\\', DIRECTORY_SEPARATOR , $entry->FOLDER);
-    $file = $input_dir . DIRECTORY_SEPARATOR . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'};
-    if (file_exists($file)){
-        return;
-    } else {
-        $message = "Missing file: " . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'} . "\n";
+    if (!isset($entry->{'File Name'})){
+        $message = "Entry " . $entry->ID . " has no file reference.\n";
         print_r($message);
-        $missing_files_file = fopen(MISSINGFILES, "a");
-        fwrite($missing_files_file, $message);
-        fclose($missing_files_file);
-        return;
+        $errors_file = fopen(ERRORS, "a");
+        while($buffer = fgets($errors_file, 5000)){
+            if ($buffer == $message){
+                $line_found = true;
+            }
+        }
+        if (!$line_found){
+            fwrite($errors_file, $message);
+        }
+        fclose($errors_file);
+        return false;
+    }
+    $file = $input_dir . DIRECTORY_SEPARATOR . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'};
+    if (!file_exists($file)){
+        $message = "Missing file in entry id " . $entry->ID . ": " . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'} . "\n";
+        print_r($message);
+        $errors_file = fopen(ERRORS, "a");
+        fwrite($errors_file, $message);
+        fclose($errors_file);
+        return false;
+    } else {
+        return true;
     }
 }
 function check_if_output_file_exists($entry, $output_root){
     $folder = str_replace('\\', DIRECTORY_SEPARATOR , $entry->FOLDER);
-    $output_file = str_replace(".tif", ".pdf", $output_root . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'});
-    if (file_exists($output_file)){
-        return true;
+    if (isset($entry->{'File Name'})){
+        $output_file = str_replace(".tif", ".pdf", $output_root . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'});
+        if (file_exists($output_file)){
+            return true;
+        } else {
+            return false;
+        }
     } else {
         return false;
     }
@@ -94,7 +114,7 @@ function process_entry($entry, $input_dir, $output_root){
         return;
     }
     if (is_dir($file)){
-        echo "Error: Specified file is a directory: " . $file . "\n";
+        echo "Error in entry " . $entry->ID . ": Specified file is a directory: " . $entry->{'File Name'} . "\n";
         return;
     }
     $path_parts = pathinfo($file);
@@ -161,6 +181,11 @@ function process_entry($entry, $input_dir, $output_root){
         // Add surname
         if (isset($entry->{'Surname'})){
             $tag = "Surname: " . $entry->{'Surname'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // Add surname/Groupname
+        if (isset($entry->{'Surname/Group_Name'})){
+            $tag = "Surname/Group_Name: " . $entry->{'Surname/Group_Name'};
             add_keyword_tag($tag, $pdf);
         }
         // Old Number
@@ -253,36 +278,45 @@ function process_entry($entry, $input_dir, $output_root){
         return false;
     }
 }
+$entries_to_process = [];
+$valid_entries_count = 0;
 //  First loop though entire DB to see how far we are
-print_r("Validating DB...\n");
-for ($i=0; $i < $entrycount; $i++) { 
-    verify_inputfile($metadata[$i], $input_dir);
-    $result = check_if_output_file_exists($metadata[$i], $output_root);
-    if ($result){
-        $completed_file_ids[] = $i;
+print_r("Validating DB entries...\n");
+for ($i=0; $i < $totalentrycount; $i++) { 
+    $entry = $metadata[$i];
+    $entry_validates = validate_entry($entry, $input_dir, $output_root);
+    if ($entry_validates){
+        $valid_entries_count++;
+        $file_already_done = check_if_output_file_exists($entry, $output_root);
+        if (!$file_already_done){
+            $entries_to_process[] = $entry->ID;
+        }
     }
 }
+print_r("\n" . $valid_entries_count . " valid entries found.\n");
 
 //  Then start tagging
-print_r("\nTagging items...\n");
-while (count($completed_file_ids) < $entrycount){
-    $selected_entry_id = rand(0, $entrycount - 1);
-    if (in_array($selected_entry_id, $completed_file_ids)){
+print_r("\nTagging files...\n");
+while (count($entries_to_process) > 1){
+    $selected_entry_index = rand(0, $totalentrycount - 1);
+    $selected_entry = $metadata[$selected_entry_index];
+    $selected_entry_id = $selected_entry->ID;
+    if (!in_array($selected_entry_id, $entries_to_process)){
         continue;
     }
-    $entry = $metadata[$selected_entry_id];
-    $output_file_exists = check_if_output_file_exists($entry, $output_root);
+    $output_file_exists = check_if_output_file_exists($selected_entry, $output_root);
     if ($output_file_exists){
-        $completed_file_ids[] = $selected_entry_id;
+        $entries_to_process_id = array_search($selected_entry_id, $entries_to_process);
+        unset($entries_to_process[$entries_to_process_id]);
     } else {
-        $selected_entry = $metadata[$selected_entry_id];
         $result = process_entry($selected_entry, $input_dir, $output_root);
         if ($result){
-            $completed_file_ids[] = $selected_entry_id;
-            $completed_file_total = count($completed_file_ids);
-            $completion_percent = round($completed_file_total / $entrycount * 100, 2);
-            echo("\n$completed_file_total files of $entrycount completed ($completion_percent%).\n");
-            $title = str_replace('.tif', '.pdf', $selected_entry->{'Document Title'});
+            $entries_to_process_id = array_search($selected_entry_id, $entries_to_process);
+            unset($entries_to_process[$entries_to_process_id]);
+            $remaining_entries_count = count($entries_to_process);
+            $completed_file_total = $valid_entries_count - $remaining_entries_count;
+            $completion_percent = round($completed_file_total / $valid_entries_count * 100, 2);
+            echo("\n$completed_file_total files of $valid_entries_count completed ($completion_percent%).\n");
         }
     }
 }
