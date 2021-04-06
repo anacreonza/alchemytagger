@@ -134,7 +134,7 @@ function process_entry($entry, $input_dir, $output_root){
         //     die("[Failed to produce OCR txt $ocrtextfile");
         // }
         // Convert file to PDF if it is a TIFF file
-        if ($path_parts['extension'] == "tif"){
+        if ($path_parts['extension'] == "tif" || $path_parts['extension'] == "TIF"){
             echo("Converting TIFF to PDF... \n");
             $pdf = $path_parts['dirname']. DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
             if (PHP_OS === "WINNT"){
@@ -272,8 +272,8 @@ function process_entry($entry, $input_dir, $output_root){
         $elapsed_time = $end_time - $start_time;
         echo("File took " . round($elapsed_time, 2) . " seconds to process.\n");
         echo("Output File: $out_file\n");
-        if ($path_parts['extension'] == "tif"){
-            rename($pdf, $out_file);
+        if ($path_parts['extension'] == "tif" || $path_parts['extension'] == "TIF"){
+            rename($pdf, $out_file); // Moves PDF to new location
         }
         if ($path_parts['extension'] == "pdf"){
             copy($pdf, $out_file);
@@ -319,9 +319,19 @@ while (count($entries_to_process) > 1){
         $entries_to_process_id = array_search($selected_entry_id, $entries_to_process);
         unset($entries_to_process[$entries_to_process_id]);
     } else {
+        // Process the entry
         $result = process_entry($selected_entry, $input_dir, $output_root);
         $entries_to_process_id = array_search($selected_entry_id, $entries_to_process);
         unset($entries_to_process[$entries_to_process_id]);
+        // Check again if any more files have been done while we were busy
+        foreach($metadata as $entry){
+            $file_already_done = check_if_output_file_exists($entry, $output_root);
+            if ($file_already_done){
+                $entry_done_id = $entry->ID;
+                $entries_to_process_id = array_search($entry_done_id, $entries_to_process);
+                unset($entries_to_process[$entries_to_process_id]);
+            }
+        }
         $remaining_entries_count = count($entries_to_process);
         $completed_file_total = $valid_entries_count - $remaining_entries_count;
         $completion_percent = round($completed_file_total / $valid_entries_count * 100, 2);
@@ -335,5 +345,5 @@ while (count($entries_to_process) > 1){
         echo("\n$completed_file_total files of $valid_entries_count completed ($completion_percent%).\n");
     }
 }
-print_r("Script complete.");
+print_r("Script complete.\nValid entries: " . $valid_entries_count . "\nFiles converted: " . $succeeded_entries_count . ".\nEntry errors: " . $errored_entries_count);
 ?>
