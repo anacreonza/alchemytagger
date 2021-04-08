@@ -114,7 +114,7 @@ function process_entry($entry, $input_dir, $output_root){
         mkdir($out_folder, 0777, true);
     }
     if (is_dir($file)){
-        $subfile = $file . DIRECTORY_SEPARATOR . $path_parts['filename'] . $path_parts['extension'];
+        $subfile = $file . DIRECTORY_SEPARATOR . $path_parts['filename'] . "." . $path_parts['extension'];
         if (!file_exists($subfile)){
             write_logentry("Error: Metadata for item ID: " . $entry->ID . " specifies file as " . $file . " but no such file exists! Also checked " . $subfile);
             return;
