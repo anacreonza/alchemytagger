@@ -107,22 +107,33 @@ function process_entry($entry, $input_dir, $output_root){
     $folder = str_replace('\\', DIRECTORY_SEPARATOR , $entry->FOLDER);
     $file = $input_dir . DIRECTORY_SEPARATOR . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'};
     $out_folder = $output_root . $folder;
+    echo "Processing entry ID:" . $entry->ID . "\n";
     if (!file_exists($out_folder)){
         echo "Making new folder $out_folder\n";
         mkdir($out_folder, 0777, true);
     }
     if (!file_exists($file)){
+        write_logentry("Error: Metadata for item ID:" . $entry->ID . " specifies file as " . $file . " - but no such file exists!");
         return;
     }
     if (is_dir($file)){
-        echo "Error in entry " . $entry->ID . ": Specified file is a directory: " . $entry->{'File Name'} . "\n";
-        return;
+        $subfile = $file . $entry->{'File Name'};
+        if (!file_exists($subfile)){
+            write_logentry("Error: Metadata for item ID: " . $entry->ID . " specifies file as " . $file . " but no such file exists!");
+            return;
+        } else {
+            $file = $subfile;
+        }
     }
     $path_parts = pathinfo($file);
     $out_file = $out_folder . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
     if (!file_exists($out_file)){
         echo("Input File: " . $file . "\n");
         $ocrfile = $path_parts['dirname'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".ocr";
+        // Try to dig deeper for the ocr file - sometimes they are stored inside a folder with the same name as the file.
+        if (!file_exists($ocrfile)){
+            $ocrfile = $path_parts['dirname'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . $path_parts['extension'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".ocr";
+        }
         // Run Tesseract to do ORC on file
         // echo("Running OCR on image... \n");
         // $cmd = TESSERACT . " " . escapeshellarg($file) . " " . escapeshellarg($ocrfile);
