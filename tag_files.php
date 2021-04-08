@@ -107,25 +107,25 @@ function process_entry($entry, $input_dir, $output_root){
     $folder = str_replace('\\', DIRECTORY_SEPARATOR , $entry->FOLDER);
     $file = $input_dir . DIRECTORY_SEPARATOR . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'};
     $out_folder = $output_root . $folder;
+    $path_parts = pathinfo($file);
     echo "Processing entry ID:" . $entry->ID . "\n";
     if (!file_exists($out_folder)){
         echo "Making new folder $out_folder\n";
         mkdir($out_folder, 0777, true);
     }
-    if (!file_exists($file)){
-        write_logentry("Error: Metadata for item ID:" . $entry->ID . " specifies file as " . $file . " - but no such file exists!");
-        return;
-    }
     if (is_dir($file)){
-        $subfile = $file . $entry->{'File Name'};
+        $subfile = $file . DIRECTORY_SEPARATOR . $path_parts['filename'] . $path_parts['extension'];
         if (!file_exists($subfile)){
-            write_logentry("Error: Metadata for item ID: " . $entry->ID . " specifies file as " . $file . " but no such file exists!");
+            write_logentry("Error: Metadata for item ID: " . $entry->ID . " specifies file as " . $file . " but no such file exists! Also checked " . $subfile);
             return;
         } else {
             $file = $subfile;
         }
     }
-    $path_parts = pathinfo($file);
+    if (!file_exists($file)){
+        write_logentry("Error: Metadata for item ID:" . $entry->ID . " specifies file as " . $file . " - but no such file exists!");
+        return;
+    }
     $out_file = $out_folder . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
     if (!file_exists($out_file)){
         echo("Input File: " . $file . "\n");
