@@ -122,12 +122,13 @@ function process_entry($entry, $input_dir, $output_root){
     $out_file = $out_folder . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
     if (!file_exists($out_file)){
         echo("Input File: " . $file . "\n");
-        $ocrfile = $path_parts['dirname'] . DIRECTORY_SEPARATOR . $path_parts['filename'];
+        $ocrfile = $path_parts['dirname'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".ocr";
         // Run Tesseract to do ORC on file
         // echo("Running OCR on image... \n");
         // $cmd = TESSERACT . " " . escapeshellarg($file) . " " . escapeshellarg($ocrfile);
         // exec($cmd);
-        // $ocrtextfile = $ocrfile . ".txt";
+        // $ocrtextfile = $ocrfile . ".ocr";
+        // rename file that comes out of tesseract to .ocr
         // if (file_exists($ocrtextfile)){
         //     echo("  [OCR OK]\n");
         // } else {
@@ -150,14 +151,13 @@ function process_entry($entry, $input_dir, $output_root){
                 write_logentry("! Failed to produce pdf: $pdf !");
                 return false;
             }
-            // Add OCR text to doc as metadata
-            // echo("Adding OCR text to file description metadata.\n");
-            // $cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original \"-imagedescription<=" . $ocrtextfile . "\"";
-            // exec($cmd);
-            // // Now delete OCR file as we no longer need it.
-            // // echo("Removing OCR file $ocrtextfile\n");
-            // unlink($ocrtextfile);
-            // Add document title to metadata
+            // Add OCR text to doc as metadata if it exists
+            if (file_exists($ocrfile)){
+                echo("Found OCR text. Adding it to file description metadata.\n");
+                $cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original \"-imagedescription<=" . $ocrfile . "\"";
+                exec($cmd);
+
+            }
         }
         echo("Tagging image with metadata extracted from .dat file...\n");
         $doctitle = basename($pdf);
@@ -256,6 +256,41 @@ function process_entry($entry, $input_dir, $output_root){
             $tag = "Alt SH Number: " . $entry->{'Alt SH Number'};
             add_keyword_tag($tag, $pdf);
         }
+        // Trade Mark Name
+        if (isset($entry->{'Trade Mark Name'})){
+            $tag = "Trade Mark Name: " . $entry->{'Trade Mark Name'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // FCTEC Archive
+        if (isset($entry->{'FCTEC Archive'})){
+            $tag = "FCTEC Archive: " . $entry->{'FCTEC Archive'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // Trademark Class(es)
+        if (isset($entry->{'Trademark Class(es)'})){
+            $tag = "Trademark Class(es): " . $entry->{'Trademark Class(es)'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // Country of Registration
+        if (isset($entry->{'Country of Registration'})){
+            $tag = "Country of Registration: " . $entry->{'Country of Registration'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // FCTEC Batch Nr
+        if (isset($entry->{'FCTEC Batch Nr'})){
+            $tag = "FCTEC Batch Nr: " . $entry->{'FCTEC Batch Nr'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // FCTEC Batch Nr
+        if (isset($entry->{'Retrieval Reference'})){
+            $tag = "Retrieval Reference: " . $entry->{'Retrieval Reference'};
+            add_keyword_tag($tag, $pdf);
+        }
+        // Matched TM Name
+        if (isset($entry->{'Matched TM Name'})){
+            $tag = "Matched TM Name: " . $entry->{'Matched TM Name'};
+            add_keyword_tag($tag, $pdf);
+        }
         // Add file date to metadata
         if (isset($entry->{'File Date'})){
             $filedate = $entry->{'File Date'};
@@ -267,6 +302,16 @@ function process_entry($entry, $input_dir, $output_root){
             $docdate = $entry->{'Document Date'};
             $tag = "Document Date: " . $docdate;
             add_keyword_tag($tag, $pdf);
+        }
+        if (isset($entry->OCR)){
+            echo("Entry refers to OCR text\n");
+            if (file_exists($entry->OCR)){
+                echo("Found OCR text file. Adding it to file description metadata.\n");
+                $cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original \"-imagedescription<=" . $ocrfile . "\"";
+                exec($cmd);
+            } else {
+                echo("OCR file $entry->OCR not found!\n");
+            }
         }
         $end_time = microtime(true);
         $elapsed_time = $end_time - $start_time;
