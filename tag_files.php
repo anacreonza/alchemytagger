@@ -316,12 +316,12 @@ function process_entry($entry, $input_dir, $output_root){
         }
         if (isset($entry->OCR)){
             echo("Entry refers to OCR text\n");
-            if (file_exists($entry->OCR)){
+            if (file_exists($ocrfile)){
                 echo("Found OCR text file. Adding it to file description metadata.\n");
                 $cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original \"-imagedescription<=" . $ocrfile . "\"";
                 exec($cmd);
             } else {
-                echo("OCR file $entry->OCR not found!\n");
+                write_logentry("Error: Entry ID: " . $entry->ID . ". Specified OCR file $ocrfile not found!\n");
             }
         }
         $end_time = microtime(true);
