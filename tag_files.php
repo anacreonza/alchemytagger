@@ -132,7 +132,7 @@ function process_entry($entry, $input_dir, $output_root){
         $ocrfile = $path_parts['dirname'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".ocr";
         // Try to dig deeper for the ocr file - sometimes they are stored inside a folder with the same name as the file.
         if (!file_exists($ocrfile)){
-            $ocrfile = $path_parts['dirname'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . $path_parts['extension'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".ocr";
+            $ocrfile = $path_parts['dirname'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . "." . $path_parts['extension'] . DIRECTORY_SEPARATOR . $path_parts['filename'] . ".ocr";
         }
         // Run Tesseract to do ORC on file
         // echo("Running OCR on image... \n");
