@@ -26,7 +26,6 @@ define('CONVERT', escapeshellarg($magick_path_string));
 $input_dir = getcwd();
 $output_root = dirname($input_dir) . DIRECTORY_SEPARATOR . "Processed" . DIRECTORY_SEPARATOR . basename($input_dir) . DIRECTORY_SEPARATOR;
 define('LOGFILE' , $input_dir . DIRECTORY_SEPARATOR . "tagging.log");
-define('ERRORS', $input_dir . DIRECTORY_SEPARATOR . "errors.txt");
 
 $json_file = "dat" . DIRECTORY_SEPARATOR . "metatags.json";
 if (file_exists($json_file)){
@@ -70,12 +69,14 @@ function validate_entry($entry, $input_dir, $output_root){
         return false;
     }
     $file = $input_dir . DIRECTORY_SEPARATOR . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'};
+    if (is_dir($file)){
+        // Sometimes the actual file is in a subdir with the same name as the file.
+        $file = $input_dir . DIRECTORY_SEPARATOR . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'} . DIRECTORY_SEPARATOR . $entry->{'File Name'};
+    }
     if (!file_exists($file)){
         $message = "Missing file in entry id " . $entry->ID . ": " . $folder . DIRECTORY_SEPARATOR . $entry->{'File Name'} . "\n";
         print_r($message);
-        $errors_file = fopen(ERRORS, "a");
-        fwrite($errors_file, $message);
-        fclose($errors_file);
+        write_logentry($message);
         return false;
     } else {
         return true;
