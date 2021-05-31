@@ -173,7 +173,8 @@ if (!file_exists($output_root)){
     mkdir($output_root, 0777, true);
 }
 
-$db_file = "\"" . $archive_root . DIRECTORY_SEPARATOR . "db" . DIRECTORY_SEPARATOR . $archive_name . ".sqlite" . "\"";
+$db_file = "\"" . $archive_root . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . $archive_name . '.sqlite' . "\"";
+$db_file = escapeshellarg($db_root);
 if (!file_exists($db_file)){
     die("Unable to open DB file " . $db_file);
 }
