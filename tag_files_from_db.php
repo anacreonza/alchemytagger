@@ -42,7 +42,7 @@ function verify_file($pdo, $archive_root, $entry){
     $cleaned_dir_separator = str_replace("\\", DIRECTORY_SEPARATOR, $dir);
     $file = $archive_root . DIRECTORY_SEPARATOR . $cleaned_dir_separator . DIRECTORY_SEPARATOR . $entry['File Name'];
     if (file_exists($file)){
-        echo("- File exists!\n");
+        echo("- Referenced file exists!\n");
         $file_exists = True;
     } else {
         echo("- File " . $file . " not found!\n");
@@ -73,6 +73,24 @@ function verify_file($pdo, $archive_root, $entry){
     }
 }
 function append_keywords($entry, $pdf){
+    // First check if there is already a PDF file for this entry.
+    //  Pull existing metadata out of existing file.
+    $cmd = EXIFTOOL . " -subject " . escapeshellarg($pdf);
+    $existing_meta_string = exec($cmd);
+    if (!$existing_meta_string == ''){
+        $existing_meta_string = str_replace("Subject                         : ", '', $existing_meta_string);
+        $existing_meta_array = explode(", ", $existing_meta_string);
+        foreach($existing_meta_array as $meta_item){
+            $meta_item_array = explode(': ', $meta_item);
+            $meta_item_key = $meta_item_array[0];
+            $meta_item_value = $meta_item_array[1];
+            if (in_array($meta_item_value, $entry)){
+                continue;
+            } else {
+                $entry[$meta_item_key] = $entry[$meta_item_key] . ", " . $meta_item_value;
+            }
+        }
+    }
     foreach ($entry as $meta_key => $meta_value) {
         if (trim($meta_value) == '' || trim($meta_value) == "." || $meta_key == 'id'){
             continue; //Dont add blank or irellevant keys.
@@ -80,8 +98,9 @@ function append_keywords($entry, $pdf){
         $key_name = $meta_key . ": ";
         $tag_string = $key_name . $meta_value;
         echo("- Appending " . $tag_string . "\n");
-        $cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -subject+=\"" . $tag_string . "\"";
+        $cmd = EXIFTOOL . " " . escapeshellarg($pdf) . " -ignoreMinorErrors -overwrite_original -subject+=\"" . $tag_string . "\"";
         exec($cmd);
+
     }
 }
 function mark_entry_as_done_in_db($pdo, $selected_entry_id){
@@ -109,9 +128,9 @@ function process_entry($archive_root, $pdo, $id){
         if (!file_exists(dirname($out_file))){
             mkdir(dirname($out_file), 0777, true);
         }
+        $pdf = $path_parts['dirname']. DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
         if ($path_parts['extension'] == "tif" || $path_parts['extension'] == "TIF"){
             echo("- Converting TIFF to PDF...");
-            $pdf = $path_parts['dirname']. DIRECTORY_SEPARATOR . $path_parts['filename'] . ".pdf";
             if (PHP_OS === "WINNT"){
                 $cmd = CONVERT . " convert " . escapeshellarg($file) . " " . escapeshellarg($pdf);
             } else {
@@ -120,20 +139,22 @@ function process_entry($archive_root, $pdo, $id){
             exec($cmd);
             if (file_exists($pdf)){
                 echo(" [OK]\n");
+                echo("- Storing " . basename($pdf));
+                rename($pdf, $out_file); // Moves PDF to new location
             } else {
-                echo(" [Failed to produce PDF!] $pdf\n");
+                die(" [Failed to produce PDF!] $pdf\n");
             }
         }
-        $result = append_keywords($entry, $pdf);
-        if ($path_parts['extension'] == "tif" || $path_parts['extension'] == "TIF"){
+        if ($path_parts['extension'] == "pdf" || $path_parts['extension'] == "PDF"){
             echo("- Storing " . basename($pdf));
-            rename($pdf, $out_file); // Moves PDF to new location
-            if (file_exists($out_file)){
-                echo(" [OK]\n");
-            } else {
-                die("Unable to store processed PDF!");
-            }
+            copy($pdf, $out_file); //Copy PDF to new location
         }
+        if (file_exists($out_file)){
+            echo(" [OK]\n");
+            } else {
+            die("Unable to store processed PDF!");
+        }
+        $result = append_keywords($entry, $out_file);
     } else {
         echo("File " . $entry_details["File Name"] . " failed verification!\n");
         return False;
