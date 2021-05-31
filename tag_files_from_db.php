@@ -162,10 +162,10 @@ function process_entry($archive_root, $pdo, $id){
     }
     return True;
 }
-$archive_root = $argv[1];
-if ($archive_root == null){
+if (!isset($argv[1])){
     die("Please specify the root directory of the archive you wish to process.");
 }
+$archive_root = $argv[1];
 $archive_name = basename($archive_root);
 $output_root = $archive_root . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "Processed" . DIRECTORY_SEPARATOR . $archive_name;
 if (!file_exists($output_root)){
@@ -173,7 +173,7 @@ if (!file_exists($output_root)){
     mkdir($output_root, 0777, true);
 }
 
-$db_file = $archive_root . DIRECTORY_SEPARATOR . "db" . DIRECTORY_SEPARATOR . $archive_name . ".sqlite";
+$db_file = "\"" . $archive_root . DIRECTORY_SEPARATOR . "db" . DIRECTORY_SEPARATOR . $archive_name . ".sqlite" . "\"";
 if (!file_exists($db_file)){
     die("Unable to open DB file " . $db_file);
 }
