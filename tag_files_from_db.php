@@ -4,7 +4,8 @@ require 'vendor/autoload.php';
 ini_set('memory_limit', '-1');
 date_default_timezone_set('Africa/Johannesburg');
 use App\SQLiteConnection;
-Config::setConfig();
+$config = new Config;
+$config->setConfig();
 
 function count_entries($pdo){
     $sql = "SELECT COUNT(*) FROM \"records\"";
