@@ -22,8 +22,8 @@ function count_done_entries($pdo){
 function check_when_entry_was_processed($pdo, $id){
     $sql = "SELECT \"Processed\" FROM \"records\" WHERE \"id\" IS " . $id;
     $query = $pdo->query($sql);
-    if ($query->fetch(\PDO::FETCH_ASSOC)){
-        $result = $query->fetch(\PDO::FETCH_ASSOC);
+    $result = $query->fetch(\PDO::FETCH_ASSOC);
+    if ($result["Processed"]){
         return $result["Processed"];
     } else {
         return False;
@@ -70,6 +70,7 @@ function verify_file($pdo, $archive_root, $entry){
         mark_entry_as_found_in_db($pdo, $entry["id"]);
         return True;
     } else {
+        mark_entry_as_not_found_in_db($pdo, $entry["id"]);
         return False;
     }
 }
@@ -78,7 +79,8 @@ function append_keywords($entry, $pdf){
     //  Pull existing metadata out of existing file.
     $cmd = EXIFTOOL . " -subject " . escapeshellarg($pdf);
     $existing_meta_string = exec($cmd);
-    if (!$existing_meta_string == ''){
+    if ($existing_meta_string !== ''){
+        echo("- Current entry refers to a file that has been processed before! Adding new metadata keys...\n");
         $existing_meta_string = str_replace("Subject                         : ", '', $existing_meta_string);
         $existing_meta_array = explode(", ", $existing_meta_string);
         foreach($existing_meta_array as $meta_item){
@@ -105,7 +107,15 @@ function append_keywords($entry, $pdf){
     }
 }
 function mark_entry_as_done_in_db($pdo, $selected_entry_id){
+    echo("- Marking entry as done in database.\n");
     $sql = "UPDATE records set \"Processed\" = " . "\"" . date ("Y/m/d H:i:s") . "\"" . " WHERE id is " . $selected_entry_id;
+    $query = $pdo->prepare($sql);
+    $result = $query->execute();
+    return $result;
+}
+function mark_entry_as_corrupt_in_db($pdo, $selected_entry_id){
+    echo ("- Failed to produce PDF! Marking entry as corrupt in database\n");
+    $sql = "UPDATE records set \"Matched\" = \"Corrupt File\" WHERE id is " . $selected_entry_id;
     $query = $pdo->prepare($sql);
     $result = $query->execute();
     return $result;
@@ -115,6 +125,18 @@ function mark_entry_as_found_in_db($pdo, $selected_entry_id){
     $query = $pdo->prepare($sql);
     $result = $query->execute();
     return $result;
+}
+function mark_entry_as_not_found_in_db($pdo, $selected_entry_id){
+    $sql = "UPDATE records set \"Matched\" = " . "\"REFERENCED FILE MISMATCH!\"" . " WHERE id is " . $selected_entry_id;
+    $query = $pdo->prepare($sql);
+    $result = $query->execute();
+    return $result;
+}
+function pick_an_entry($pdo){
+    $sql = "SELECT id FROM \"records\" WHERE \"Processed\" is null ORDER by random() LIMIT 1";
+    $query = $pdo->query($sql);
+    $result = $query->fetch(\PDO::FETCH_ASSOC);
+    return $result['id'];
 }
 function process_entry($archive_root, $pdo, $id){
     $entry = retrieve_entry($pdo, $id);
@@ -133,7 +155,9 @@ function process_entry($archive_root, $pdo, $id){
         if ($path_parts['extension'] == "tif" || $path_parts['extension'] == "TIF"){
             echo("- Converting TIFF to PDF...");
             if (PHP_OS === "WINNT"){
-                $cmd = CONVERT . " convert " . escapeshellarg($file) . " " . escapeshellarg($pdf);
+                $cmd = "magick.exe convert " . escapeshellarg($file) . " " . escapeshellarg($pdf);
+                
+                // die(var_dump($cmd));
             } else {
                 $cmd = CONVERT . " " . escapeshellarg($file) . " " . escapeshellarg($pdf);
             }
@@ -143,7 +167,9 @@ function process_entry($archive_root, $pdo, $id){
                 echo("- Storing " . basename($pdf));
                 rename($pdf, $out_file); // Moves PDF to new location
             } else {
-                die(" [Failed to produce PDF!] $pdf\n");
+                $result = mark_entry_as_corrupt_in_db($pdo, $id);
+                $result = mark_entry_as_done_in_db($pdo, $id);
+                return $result;
             }
         }
         if ($path_parts['extension'] == "pdf" || $path_parts['extension'] == "PDF"){
@@ -152,15 +178,17 @@ function process_entry($archive_root, $pdo, $id){
         }
         if (file_exists($out_file)){
             echo(" [OK]\n");
-            } else {
-            die("Unable to store processed PDF!");
+        } else {
+            $result = mark_entry_as_corrupt_in_db($pdo, $id);
+            $result = mark_entry_as_done_in_db($pdo, $id);
+            return $result;
         }
         $result = append_keywords($entry, $out_file);
     } else {
-        echo("File " . $entry_details["File Name"] . " failed verification!\n");
-        return False;
+        echo("File " . $entry["File Name"] . " failed verification!\n");
     }
-    return True;
+    $result = mark_entry_as_done_in_db($pdo, $id);
+    return $result;
 }
 if (!isset($argv[1])){
     die("Please specify the root directory of the archive you wish to process.");
@@ -173,10 +201,11 @@ if (!file_exists($output_root)){
     mkdir($output_root, 0777, true);
 }
 
-$db_file = "\"" . $archive_root . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . $archive_name . '.sqlite' . "\"";
-$db_file = escapeshellarg($db_root);
+$db_file = $archive_root . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . $archive_name . '.sqlite';
+// $db_file = escapeshellarg($db_file);
+// $db_file = "D:\Backup_2\WELKOM YIZANI V.2.0 beta 2\db\WELKOM YIZANI V.2.0 beta 2.sqlite";
 if (!file_exists($db_file)){
-    die("Unable to open DB file " . $db_file);
+    die("Unable to open DB file: " . $db_file);
 }
 
 $pdo = (new SQLiteConnection())->connect($db_file);
@@ -184,6 +213,8 @@ if ($pdo == null) {
     die("Error connecting to SQLite database.");
 }
 $entry_count = count_entries($pdo);
+$done_entries_this_script_knows_about = [];
+$completion_times = [];
 
 echo("\n===========================================\n\n");
 echo("ALCHEMY TAGGING SCRIPT\n\n");
@@ -191,24 +222,20 @@ echo("Archive Name:  " . $archive_name . "\n");
 echo("Total entries: " . $entry_count . "\n");
 echo("\n===========================================\n\n");
 
-while (count_done_entries($pdo) < $entry_count){
+while (count_done_entries($pdo) <= $entry_count){
     $start_time = microtime(true);
-    $selected_entry_id = rand(1, $entry_count);
-    $date_done = check_when_entry_was_processed($pdo, $selected_entry_id);
-    if ($date_done){
-        echo("- Entry already processed on " . $date_done . "\n");
-        continue;
-    }
+    $selected_entry_id = pick_an_entry($pdo);
     $percent_complete = round(count_done_entries($pdo) / $entry_count * 100, 2);
-    echo("\n\nProcessing entry id " . $selected_entry_id . ". " . count_done_entries($pdo) . " of " . $entry_count . " entries complete. (" . $percent_complete . "%)\n\n");
-
+    $remaining_entries = $entry_count - count_done_entries($pdo);
+    echo("\n\nProcessing entry id " . $selected_entry_id . ". " . $remaining_entries . " of " . $entry_count . " entries remaining. (" . $percent_complete . "%)\n\n");
     $result = process_entry($archive_root, $pdo, $selected_entry_id);
     if ($result){
-        echo("- Marking entry as done in database.\n");
-        $result = mark_entry_as_done_in_db($pdo, $selected_entry_id);
         $end_time = microtime(true);
         $elapsed_time = $end_time - $start_time;
-        echo("Entry took " . round($elapsed_time, 2) . " seconds to process.\n");
+        $completion_times[] = $elapsed_time;
+        $average_completion_time = array_sum($completion_times) / count($completion_times);
+        echo("Took " . round($elapsed_time, 2) . " seconds. Average is " . round($average_completion_time, 2) . ".\n");
     }
 }
+echo("Conversion script complete!\n\n");
 ?>
